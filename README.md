@@ -11,6 +11,7 @@ It also depends on the [Chill](https://github.com/twitter/chill) for the seriali
 - Double
 - String
 - Simple case class
+- org.joda.time.DateTime
 
 ## License
 
