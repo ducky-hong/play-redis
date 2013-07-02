@@ -43,17 +43,24 @@ class RedisCacheImpl(pool: RedisClientPool) extends CacheAPI {
 
   import serialization._
   import Parse.Implicits._
-  import com.twitter.chill.KryoInjection
+  import com.twitter.chill._
+
+  val kryoInjection = KryoInjection.instance({
+    val kryo = KryoBijection.getKryo
+    import org.joda.time.DateTime
+    kryo.register(classOf[DateTime], new DateTimeSerializer)
+    kryo
+  }, 1 << 12, 1 << 24)
 
   def set(key: String, value: Any, expiration: Int): Unit = {
     pool.withClient { client =>
       val cacheData = value match {
         case v: Boolean => Array[Byte](CacheDataType.Boolean, if (v) 0x01 else 0x00)
-        case v: Int => CacheDataType.Int +: Format.default(value)
-        case v: Long => CacheDataType.Long +: Format.default(value)
-        case v: Double => CacheDataType.Double +: Format.default(value)
-        case v: String => CacheDataType.String +: Format.default(value)
-        case v: AnyRef => CacheDataType.AnyRef +: KryoInjection(v)
+        case v: Int => CacheDataType.Int +: Format.default(v)
+        case v: Long => CacheDataType.Long +: Format.default(v)
+        case v: Double => CacheDataType.Double +: Format.default(v)
+        case v: String => CacheDataType.String +: Format.default(v)
+        case v: AnyRef => CacheDataType.AnyRef +: kryoInjection(v)
         case _ => throw new MatchError(value.getClass + " does not support.")
       }
       client.set(key, cacheData)
@@ -74,7 +81,7 @@ class RedisCacheImpl(pool: RedisClientPool) extends CacheAPI {
           case CacheDataType.Long => Some(parseLong(data))
           case CacheDataType.Double => Some(parseDouble(data))
           case CacheDataType.String => Some(parseString(data))
-          case CacheDataType.AnyRef => KryoInjection.invert(data)
+          case CacheDataType.AnyRef => kryoInjection.invert(data)
         }
       }
     }
